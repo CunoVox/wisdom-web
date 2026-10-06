@@ -18,6 +18,7 @@ export type Lesson = {
   preview: boolean;
   body?: string;
   videoId?: string;
+  videoReady?: boolean;
   attachmentId?: string;
   seconds?: number;
   completed?: boolean;
