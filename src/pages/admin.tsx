@@ -15,7 +15,7 @@ import {
   Pager,
   useAction,
 } from "../components/ui";
-import type { User, Course, Order, Page } from "../types";
+import type { User, Course, Category, Order, Page } from "../types";
 export function Dashboard({ instructor = false }: { instructor?: boolean }) {
   const q = useQuery({
     queryKey: ["dashboard", instructor],
@@ -285,7 +285,7 @@ function CourseRow({ c }: { c: Course }) {
 export function Categories() {
   const q = useQuery({
     queryKey: ["categories"],
-    queryFn: () => get<import("../types").Category[]>("/public/categories"),
+    queryFn: () => get<Category[]>("/public/categories"),
   });
   return (
     <>
