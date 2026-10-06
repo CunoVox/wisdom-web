@@ -1,4 +1,4 @@
-import { categoryRows } from "../components/category-picker";
+import { CategoryTree } from "../components/category-tree";
 import { Avatar } from "../components/avatar";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -15,7 +15,7 @@ import {
   Pager,
   useAction,
 } from "../components/ui";
-import type { User, Course, Category, Order, Page } from "../types";
+import type { User, Course, Order, Page } from "../types";
 export function Dashboard({ instructor = false }: { instructor?: boolean }) {
   const q = useQuery({
     queryKey: ["dashboard", instructor],
@@ -285,91 +285,17 @@ function CourseRow({ c }: { c: Course }) {
 export function Categories() {
   const q = useQuery({
     queryKey: ["categories"],
-    queryFn: () => get<Category[]>("/public/categories"),
+    queryFn: () => get<import("../types").Category[]>("/public/categories"),
   });
-  const action = useAction();
-  const [edit, setEdit] = useState<Category | null>(null);
   return (
     <>
-      <Heading title="Danh mục khóa học" />
-      <div className="learning-grid">
-        <State query={q}>
-          <section className="panel stack">
-            {categoryRows(q.data || []).map((c) => (
-              <div
-                className="flex justify-between gap-4 border-b border-line pb-3"
-                key={c.id}
-              >
-                <strong style={{ paddingLeft: c.depth * 20 }}>{c.depth > 0 ? "↳ " : ""}{c.name}</strong>
-                <div className="flex gap-2">
-                  <button className="secondary" onClick={() => setEdit(c)}>
-                    Sửa
-                  </button>
-                  <button
-                    className="danger"
-                    onClick={() =>
-                      action.mutate({
-                        path: `/admin/categories/${c.id}`,
-                        method: "delete",
-                      })
-                    }
-                  >
-                    Xóa
-                  </button>
-                </div>
-              </div>
-            ))}
-            {q.data?.length === 0 && <Empty />}
-          </section>
-        </State>
-        <form
-          className="panel stack h-fit"
-          key={edit?.id || "new"}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = e.currentTarget;
-            action.mutate(
-              {
-                path: `/admin/categories${edit ? "/" + edit.id : ""}`,
-                method: edit ? "put" : "post",
-                data: Object.fromEntries(new FormData(form)),
-              },
-              {
-                onSuccess: () => {
-                  setEdit(null);
-                  form.reset();
-                },
-              },
-            );
-          }}
-        >
-          <h2>{edit ? "Sửa danh mục" : "Thêm danh mục"}</h2>
-          <Field label="Tên danh mục">
-            <input
-              name="name"
-              defaultValue={edit?.name}
-              required
-              maxLength={120}
-            />
-          </Field>
-          <Field label="Danh mục cha">
-            <select name="parentId" defaultValue={edit?.parentId || ""}>
-              <option value="">Danh mục gốc</option>
-              {categoryRows(q.data || []).filter(c => c.id !== edit?.id && !c.ancestors.includes(edit?.id || "")).map(c => <option key={c.id} value={c.id}>{"— ".repeat(c.depth)}{c.name}</option>)}
-            </select>
-          </Field>
-          <button disabled={action.isPending}>Lưu danh mục</button>
-          {edit && (
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => setEdit(null)}
-            >
-              Hủy
-            </button>
-          )}
-        </form>
-      </div>
+      <Heading
+        title="Danh mục khóa học"
+        description="Quản lý cấu trúc danh mục nhiều cấp. Thêm danh mục con trực tiếp tại nhánh cần sử dụng."
+      />
+      <State query={q}>
+        {q.data && <CategoryTree categories={q.data} />}
+      </State>
     </>
   );
 }
