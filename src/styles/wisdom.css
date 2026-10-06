@@ -39,7 +39,7 @@
   tbody tr:hover { background: #f9fbfd; }
 }
 @layer components {
-  .course-media-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .course-media-grid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 24px; align-items: start; }
   .media-upload { min-width: 0; display: grid; gap: 10px; }
   .media-upload-label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; }
   .media-upload input { font-weight: 400; }
@@ -53,6 +53,28 @@
   .media-upload-success span { display: none; font-size: 12px; }
   .media-upload-success:hover span, .media-upload-success:focus span { display: inline; }
   .media-upload-error { color: #b42318; font-size: 13px; }
+  .cover-upload { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: #fff; gap: 14px; }
+  .cover-upload-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+  .cover-upload-title { display: block; color: var(--ink); font-size: 14px; font-weight: 800; }
+  .cover-upload-heading p { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .cover-media-preview { border: 1.5px dashed #cbd5df; border-radius: 10px; background: #f8fafc; transition: border-color .16s ease, background .16s ease, box-shadow .16s ease; }
+  .cover-media-preview.has-media { border-style: solid; border-color: var(--line); background: #eef2f5; }
+  .cover-media-preview.drag-active { border-color: var(--brand); background: var(--soft); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 10%, transparent); }
+  .cover-media-preview img { object-fit: cover; }
+  .cover-upload-placeholder { display: grid; justify-items: center; gap: 9px; padding: 28px; text-align: center; color: var(--muted); }
+  .cover-upload-placeholder strong { color: var(--ink); font-size: 14px; }
+  .cover-upload-placeholder > span:not(.cover-upload-icon) { font-size: 12px; }
+  .cover-upload-placeholder .secondary { margin-top: 3px; }
+  .cover-upload-icon { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 14px; color: var(--brand); background: var(--soft); }
+  .cover-upload-footer { display: grid; gap: 12px; }
+  .cover-upload-guides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--canvas); }
+  .cover-upload-guides span { min-width: 0; padding: 10px 12px; display: grid; gap: 2px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+  .cover-upload-guides span + span { border-left: 1px solid var(--line); }
+  .cover-upload-guides strong { color: var(--ink); font-size: 11px; overflow-wrap: anywhere; }
+  .cover-upload-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .cover-upload-actions > div { display: grid; gap: 3px; }
+  .cover-upload-actions strong { font-size: 12px; overflow-wrap: anywhere; }
+  .cover-upload-actions small { color: var(--muted); font-size: 10px; line-height: 1.5; }
   .rich-editor > .media-upload { padding: 12px; border-top: 1px solid var(--line); }
   .rich-editor .media-preview { max-width: 320px; }
   .rich-editor .media-preview:has(.media-placeholder) { display: none; }
@@ -408,3 +430,10 @@
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 @media (max-width: 760px) { .course-media-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) {
+  .cover-upload { padding: 15px; }
+  .cover-upload-guides { grid-template-columns: 1fr; }
+  .cover-upload-guides span + span { border-left: 0; border-top: 1px solid var(--line); }
+  .cover-upload-actions { align-items: flex-start; flex-direction: column; }
+}
+

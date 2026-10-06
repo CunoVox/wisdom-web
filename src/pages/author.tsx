@@ -236,7 +236,9 @@ function Editor({ course: c }: { course?: Course }) {
                   </Field>
                 </div>
                 <FileUpload
-                  label="Tải ảnh bìa"
+                  variant="cover"
+                  label="Ảnh bìa khóa học"
+                  description="Ảnh này xuất hiện ở trang khám phá và trang chi tiết khóa học."
                   purpose="COVER"
                   value={cover}
                   onUploaded={(f) => setCover(f.id)}
