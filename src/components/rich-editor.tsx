@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
@@ -183,7 +183,7 @@ export function RichEditor({
     active?: boolean;
     disabled?: boolean;
     action: () => void;
-    icon: React.ReactNode;
+    icon: ReactNode;
   }) => (
     <button
       type="button"
