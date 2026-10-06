@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T17:03:23.816Z",
+  "title": "Design System: Wisdom - Edumim direction",
+  "extensions": {
+    "colorMeta": {
+      "brand": {
+        "displayName": "Accessible teal",
+        "role": "link"
+      },
+      "coral": {
+        "displayName": "Coral",
+        "role": "primary"
+      },
+      "teal": {
+        "displayName": "Mint teal",
+        "role": "accent"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "source": "public/fonts/typography.css",
+        "selfHosted": true
+      }
+    },
+    "shadows": {
+      "menu": "0 14px 42px #0c13271c",
+      "card": "0 8px 24px #0c13270b",
+      "modal": "0 24px 80px #0c132726"
+    },
+    "motion": {
+      "account": {
+        "duration": 0.18,
+        "from": {
+          "opacity": 0,
+          "y": -8
+        }
+      },
+      "hero": {
+        "duration": 7,
+        "y": [
+          0,
+          -7,
+          0
+        ]
+      },
+      "spinner": {
+        "duration": 1.5,
+        "ease": "linear"
+      },
+      "reducedMotion": "honor user setting"
+    },
+    "breakpoints": {
+      "mobile": 760,
+      "tablet": 900,
+      "compact": 1150
+    }
+  },
+  "components": [
+    {
+      "id": "primary-button",
+      "name": "Primary button",
+      "html": "<button class=\"sample-primary\">Explore courses</button>",
+      "css": ".sample-primary{background:#ff7e84;color:#fff;border:1px solid transparent;border-radius:7px;padding:12px 22px;font:750 14px Be Vietnam Pro,sans-serif}.sample-primary:focus-visible{outline:3px solid #117d72;outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Welcoming Edumim-inspired learning, real Wisdom functionality",
+    "overview": "Mint/coral public marketplace with calm author and administrative workspaces.",
+    "rules": [
+      "No invented commercial claims",
+      "Role-scoped workspace sidebar",
+      "Uploads remain nonblocking"
+    ],
+    "dos": [
+      "Use real API content",
+      "Respect reduced motion",
+      "Use Wisdom mascot loader for full-page loading"
+    ],
+    "donts": [
+      "Do not show fullscreen upload overlays",
+      "Do not restore the old blue theme"
+    ]
+  }
+}

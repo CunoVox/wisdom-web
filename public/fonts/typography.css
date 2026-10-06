@@ -1,0 +1,6 @@
+/* Be Vietnam Pro: Google Fonts, SIL OFL; full Vietnamese support. */
+@font-face { font-family: 'Be Vietnam Pro'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/be-vietnam-pro-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Be Vietnam Pro'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/be-vietnam-pro-Medium.ttf') format('truetype'); }
+@font-face { font-family: 'Be Vietnam Pro'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/be-vietnam-pro-SemiBold.ttf') format('truetype'); }
+@font-face { font-family: 'Be Vietnam Pro'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/be-vietnam-pro-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Be Vietnam Pro'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/be-vietnam-pro-ExtraBold.ttf') format('truetype'); }
