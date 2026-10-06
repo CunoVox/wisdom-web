@@ -3,7 +3,7 @@ import { RichEditor } from "../components/rich-editor";
 import { categoryRows } from "../components/category-picker";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, FileText, FileVideo, LoaderCircle, Paperclip, Plus, RefreshCw, Upload, X } from "lucide-react";
+import { BookOpen, FileText, FileVideo, Paperclip, Plus, RefreshCw, Upload, X } from "lucide-react";
 import { api, errorMessage, get, money } from "../lib/api";
 import {
   Heading,
@@ -254,7 +254,11 @@ function Editor({ course: c }: { course?: Course }) {
   };
 
   const retryVideoUpload = (task: VideoUploadTask) => {
-    const next = { ...task, phase: task.uploadedFileId ? "attaching" : "uploading" as const };
+    const next: VideoUploadTask = {
+      ...task,
+      phase: task.uploadedFileId ? "attaching" : "uploading",
+      error: undefined,
+    };
     setVideoUploads((current) => ({
       ...current,
       [task.lessonId]: next,
