@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { RichEditor } from "../components/rich-editor";
 import { categoryRows } from "../components/category-picker";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, BookOpen } from "lucide-react";
-import { get, money } from "../lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BookOpen, FileText, FileVideo, LoaderCircle, Paperclip, Plus, RefreshCw, Upload, X } from "lucide-react";
+import { api, errorMessage, get, money } from "../lib/api";
 import {
   Heading,
   State,
@@ -14,8 +14,9 @@ import {
   useAction,
 } from "../components/ui";
 import { FileUpload } from "../components/file-upload";
-import type { Course, Category, Chapter, Lesson } from "../types";
+import type { Course, Category, Chapter, Lesson, StoredFile } from "../types";
 import { ArrayPager } from "../components/array-pager";
+import { toast } from "sonner";
 export function AuthorCourses() {
   const [page, setPage] = useState(0);
   const q = useQuery({
@@ -101,10 +102,24 @@ export function CourseEditor() {
     </State>
   );
 }
+type VideoUploadTask = {
+  lessonId: string;
+  chapterId: string;
+  file: File;
+  fileName: string;
+  progress: number;
+  phase: "uploading" | "attaching" | "error";
+  lesson: Lesson;
+  uploadedFileId?: string;
+  error?: string;
+};
+
 function Editor({ course: c }: { course?: Course }) {
   const nav = useNavigate();
   const action = useAction();
+  const queryClient = useQueryClient();
   const [cover, setCover] = useState(c?.coverId || "");
+  const [videoUploads, setVideoUploads] = useState<Record<string, VideoUploadTask>>({});
   const [editLesson, setEditLesson] = useState<{
     chapter: Chapter;
     lesson?: Lesson;
@@ -123,6 +138,129 @@ function Editor({ course: c }: { course?: Course }) {
     enabled: Boolean(c),
   });
   const frozen = Boolean(c && (c.enrollments > 0 || c.status === "PENDING"));
+  const activeVideoUploads = Object.values(videoUploads).filter(
+    (task) => task.phase !== "error",
+  ).length;
+  const incompleteVideos = Boolean(
+    c?.chapters?.some((chapter) =>
+      chapter.lessons.some(
+        (lesson) => lesson.kind === "VIDEO" && !lesson.videoReady,
+      ),
+    ),
+  );
+
+  const updateVideoTask = (
+    lessonId: string,
+    patch: Partial<VideoUploadTask>,
+  ) => {
+    setVideoUploads((current) => {
+      const task = current[lessonId];
+      return task
+        ? { ...current, [lessonId]: { ...task, ...patch } }
+        : current;
+    });
+  };
+
+  const finishVideoTask = (lessonId: string) => {
+    setVideoUploads((current) => {
+      const next = { ...current };
+      delete next[lessonId];
+      return next;
+    });
+  };
+
+  const attachVideo = async (task: VideoUploadTask, fileId: string) => {
+    updateVideoTask(task.lessonId, {
+      phase: "attaching",
+      uploadedFileId: fileId,
+      progress: 100,
+      error: undefined,
+    });
+    await api.put(
+      `/instructor/courses/${c?.id}/chapters/${task.chapterId}/lessons/${task.lessonId}`,
+      {
+        title: task.lesson.title,
+        position: task.lesson.position,
+        kind: task.lesson.kind,
+        body: task.lesson.body || "",
+        preview: task.lesson.preview,
+        videoId: fileId,
+        attachmentId: task.lesson.attachmentId || null,
+      },
+    );
+    finishVideoTask(task.lessonId);
+    await queryClient.invalidateQueries({ queryKey: ["course", c?.id] });
+    toast.success(`Video "${task.lesson.title}" đã tải xong`);
+  };
+
+  const runVideoUpload = async (task: VideoUploadTask) => {
+    try {
+      let fileId = task.uploadedFileId;
+      if (!fileId) {
+        updateVideoTask(task.lessonId, {
+          phase: "uploading",
+          progress: 0,
+          error: undefined,
+        });
+        const data = new FormData();
+        data.append("file", task.file);
+        const result = await api.post<StoredFile>(
+          "/files?purpose=LESSON",
+          data,
+          {
+            onUploadProgress: (event) => {
+              if (!event.total) return;
+              updateVideoTask(task.lessonId, {
+                progress: Math.min(
+                  99,
+                  Math.round((event.loaded / event.total) * 100),
+                ),
+              });
+            },
+          },
+        );
+        fileId = result.data.id;
+      }
+      await attachVideo(task, fileId);
+    } catch (error) {
+      const message = errorMessage(error);
+      updateVideoTask(task.lessonId, {
+        phase: "error",
+        error: message,
+      });
+      toast.error(`Tải video thất bại: ${message}`);
+    }
+  };
+
+  const startVideoUpload = (
+    file: File,
+    lesson: Lesson,
+    chapterId: string,
+  ) => {
+    const task: VideoUploadTask = {
+      lessonId: lesson.id,
+      chapterId,
+      file,
+      fileName: file.name,
+      progress: 0,
+      phase: "uploading",
+      lesson,
+    };
+    setVideoUploads((current) => ({
+      ...current,
+      [lesson.id]: task,
+    }));
+    void runVideoUpload(task);
+  };
+
+  const retryVideoUpload = (task: VideoUploadTask) => {
+    const next = { ...task, phase: task.uploadedFileId ? "attaching" : "uploading" as const };
+    setVideoUploads((current) => ({
+      ...current,
+      [task.lessonId]: next,
+    }));
+    void runVideoUpload(next);
+  };
   return (
     <>
       <Heading
@@ -136,13 +274,25 @@ function Editor({ course: c }: { course?: Course }) {
             </Link>
             <button
               disabled={
-                action.isPending || !["DRAFT", "REJECTED"].includes(c.status)
+                action.isPending ||
+                activeVideoUploads > 0 ||
+                incompleteVideos ||
+                !["DRAFT", "REJECTED"].includes(c.status)
+              }
+              title={
+                activeVideoUploads > 0
+                  ? "Chờ video tải xong trước khi gửi duyệt"
+                  : incompleteVideos
+                    ? "Một số bài Video chưa có video"
+                    : undefined
               }
               onClick={() =>
                 action.mutate({ path: `/instructor/courses/${c.id}/submit` })
               }
             >
-              Gửi duyệt
+              {activeVideoUploads > 0
+                ? `Đang tải ${activeVideoUploads} video…`
+                : "Gửi duyệt"}
             </button>
           </div>
         )}
@@ -282,37 +432,74 @@ function Editor({ course: c }: { course?: Course }) {
                       </button>
                     </div>
                   </div>
-                  {ch.lessons.map((l) => (
-                    <div key={l.id} className="lesson-row">
-                      <span>
-                        {l.position + 1}. {l.title}{" "}
-                        {l.preview && <Badge value="Học thử" />}
-                      </span>
-                      <div className="flex gap-2">
-                        <button
-                          disabled={frozen}
-                          className="secondary"
-                          onClick={() =>
-                            setEditLesson({ chapter: ch, lesson: l })
-                          }
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          className="danger"
-                          disabled={frozen}
-                          onClick={() =>
-                            action.mutate({
-                              path: `/instructor/lessons/${l.id}`,
-                              method: "delete",
-                            })
-                          }
-                        >
-                          Xóa
-                        </button>
+                  {ch.lessons.map((l) => {
+                    const upload = videoUploads[l.id];
+                    return (
+                      <div key={l.id} className="lesson-row lesson-builder-row">
+                        <span className="lesson-row-main">
+                          <span>
+                            {l.position + 1}. {l.title}{" "}
+                            {l.preview && <Badge value="Học thử" />}
+                          </span>
+                          {l.kind === "VIDEO" && (
+                            <small
+                              className={
+                                upload?.phase === "error"
+                                  ? "lesson-video-state error"
+                                  : upload
+                                    ? "lesson-video-state uploading"
+                                    : l.videoReady
+                                      ? "lesson-video-state ready"
+                                      : "lesson-video-state warning"
+                              }
+                            >
+                              {upload?.phase === "error"
+                                ? "Upload video lỗi"
+                                : upload?.phase === "attaching"
+                                  ? "Đang hoàn tất video…"
+                                  : upload
+                                    ? `Đang tải video ${upload.progress}%`
+                                    : l.videoReady
+                                      ? "Video sẵn sàng"
+                                      : "Chưa có video"}
+                            </small>
+                          )}
+                        </span>
+                        <div className="flex gap-2">
+                          {upload?.phase === "error" && (
+                            <button
+                              className="secondary"
+                              onClick={() => retryVideoUpload(upload)}
+                            >
+                              <RefreshCw size={15} />
+                              Thử lại
+                            </button>
+                          )}
+                          <button
+                            disabled={frozen || Boolean(upload && upload.phase !== "error")}
+                            className="secondary"
+                            onClick={() =>
+                              setEditLesson({ chapter: ch, lesson: l })
+                            }
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            className="danger"
+                            disabled={frozen || Boolean(upload)}
+                            onClick={() =>
+                              action.mutate({
+                                path: `/instructor/lessons/${l.id}`,
+                                method: "delete",
+                              })
+                            }
+                          >
+                            Xóa
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <button
                     disabled={frozen}
                     className="secondary self-start"
@@ -389,6 +576,18 @@ function Editor({ course: c }: { course?: Course }) {
               Soạn thông tin, thêm chương và bài học, kiểm tra nội dung rồi gửi
               duyệt. Người quản lý sẽ phê duyệt hoặc phản hồi lý do.
             </p>
+            {activeVideoUploads > 0 && (
+              <p className="notice">
+                Có {activeVideoUploads} video đang tải nền. Bạn vẫn có thể tiếp
+                tục chỉnh sửa khóa học.
+              </p>
+            )}
+            {incompleteVideos && activeVideoUploads === 0 && (
+              <p className="notice">
+                Một số bài Video chưa có video. Hoàn tất upload trước khi gửi
+                duyệt.
+              </p>
+            )}
             {c && (
               <>
                 <Badge value={c.status} />
@@ -432,6 +631,7 @@ function Editor({ course: c }: { course?: Course }) {
           courseId={c.id}
           chapter={editLesson.chapter}
           lesson={editLesson.lesson}
+          startVideoUpload={startVideoUpload}
           close={() => setEditLesson(null)}
         />
       )}
@@ -442,11 +642,13 @@ function LessonModal({
   courseId,
   chapter,
   lesson,
+  startVideoUpload,
   close,
 }: {
   courseId: string;
   chapter: Chapter;
   lesson?: Lesson;
+  startVideoUpload: (file: File, lesson: Lesson, chapterId: string) => void;
   close: () => void;
 }) {
   const q = useQuery({
@@ -455,22 +657,26 @@ function LessonModal({
     enabled: Boolean(lesson),
   });
   return (
-    <div
-      className="modal-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-    >
+    <div className="modal-backdrop">
       <section
         role="dialog"
         aria-modal="true"
         aria-label="Soạn bài học"
-        className="modal panel stack"
+        className="modal lesson-modal"
       >
-        <div className="flex justify-between">
-          <h2>{lesson ? "Sửa bài học" : "Thêm bài học"}</h2>
-          <button className="secondary" onClick={close}>
-            Đóng
+        <div className="lesson-modal-header">
+          <div>
+            <span>Chương {chapter.position + 1}</span>
+            <h2>{lesson ? "Sửa bài học" : "Thêm bài học"}</h2>
+            <p>{chapter.title}</p>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Đóng"
+            onClick={close}
+          >
+            <X size={20} />
           </button>
         </div>
         {lesson ? (
@@ -480,35 +686,59 @@ function LessonModal({
                 courseId={courseId}
                 chapter={chapter}
                 lesson={q.data}
+                startVideoUpload={startVideoUpload}
                 close={close}
               />
             )}
           </State>
         ) : (
-          <LessonForm courseId={courseId} chapter={chapter} close={close} />
+          <LessonForm
+            courseId={courseId}
+            chapter={chapter}
+            startVideoUpload={startVideoUpload}
+            close={close}
+          />
         )}
       </section>
     </div>
   );
 }
+
 function LessonForm({
   courseId,
   chapter,
   lesson: l,
+  startVideoUpload,
   close,
 }: {
   courseId: string;
   chapter: Chapter;
   lesson?: Lesson;
+  startVideoUpload: (file: File, lesson: Lesson, chapterId: string) => void;
   close: () => void;
 }) {
   const action = useAction();
-  const [kind, setKind] = useState(l?.kind || "ARTICLE");
-  const [videoId, setVideo] = useState(l?.videoId || "");
+  const videoInput = useRef<HTMLInputElement>(null);
+  const [kind, setKind] = useState<"ARTICLE" | "VIDEO">(
+    (l?.kind as "ARTICLE" | "VIDEO") || "ARTICLE",
+  );
+  const [videoFile, setVideoFile] = useState<File>();
+  const [dragVideo, setDragVideo] = useState(false);
   const [attachmentId, setAttachment] = useState(l?.attachmentId || "");
+  const [showAttachment, setShowAttachment] = useState(Boolean(l?.attachmentId));
+
+  const chooseVideo = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("video/")) {
+      toast.error("Vui lòng chọn một file video hợp lệ.");
+      return;
+    }
+    setVideoFile(file);
+  };
+
   return (
     <form
-      className="stack"
+      className="lesson-form"
       onSubmit={(e) => {
         e.preventDefault();
         const d = Object.fromEntries(new FormData(e.currentTarget));
@@ -517,65 +747,234 @@ function LessonForm({
             path: `/instructor/courses/${courseId}/chapters/${chapter.id}/lessons${l ? "/" + l.id : ""}`,
             method: l ? "put" : "post",
             data: {
-              ...d,
+              title: d.title,
+              body: d.body,
               kind,
-              position: Number(d.position),
+              position: l?.position ?? chapter.lessons.length,
               preview: d.preview === "on",
-              videoId: videoId || null,
+              videoId: kind === "VIDEO" ? l?.videoId || null : null,
               attachmentId: attachmentId || null,
             },
           },
-          { onSuccess: close },
+          {
+            onSuccess: (saved: Lesson) => {
+              if (kind === "VIDEO" && videoFile) {
+                startVideoUpload(videoFile, saved, chapter.id);
+                toast.success(
+                  "Bài học đã lưu. Video sẽ tiếp tục tải ở chế độ nền.",
+                );
+              }
+              close();
+            },
+          },
         );
       }}
     >
-      <Field label="Tiêu đề">
-        <input name="title" defaultValue={l?.title} required />
-      </Field>
-      <div className="form-grid">
-        <Field label="Loại bài">
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as "ARTICLE" | "VIDEO")}
-          >
-            <option value="ARTICLE">Bài viết</option>
-            <option value="VIDEO">Video</option>
-          </select>
-        </Field>
-        <Field label="Thứ tự">
+      <div className="lesson-form-body">
+        <Field label="Tiêu đề bài học">
           <input
-            name="position"
-            type="number"
-            min={0}
-            defaultValue={l?.position ?? chapter.lessons.length}
+            name="title"
+            defaultValue={l?.title}
+            required
+            maxLength={200}
+            placeholder="Ví dụ: Giới thiệu tổng quan về JavaScript"
           />
         </Field>
+
+        <section className="lesson-form-section">
+          <div className="lesson-section-heading">
+            <div>
+              <strong>Loại bài học</strong>
+              <small>Chọn định dạng nội dung chính của bài.</small>
+            </div>
+          </div>
+          <div className="lesson-kind-picker">
+            <button
+              type="button"
+              className={kind === "ARTICLE" ? "selected" : ""}
+              onClick={() => {
+                setKind("ARTICLE");
+                setVideoFile(undefined);
+              }}
+            >
+              <FileText size={20} />
+              <span>
+                <strong>Bài viết</strong>
+                <small>Nội dung văn bản, ảnh và tài liệu.</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              className={kind === "VIDEO" ? "selected" : ""}
+              onClick={() => setKind("VIDEO")}
+            >
+              <FileVideo size={20} />
+              <span>
+                <strong>Video</strong>
+                <small>Video là nội dung chính của bài.</small>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        {kind === "VIDEO" && (
+          <section className="lesson-form-section">
+            <div className="lesson-section-heading">
+              <div>
+                <strong>Video bài học</strong>
+                <small>
+                  Bạn có thể lưu bài ngay. Video sẽ tiếp tục tải sau khi đóng cửa
+                  sổ này.
+                </small>
+              </div>
+            </div>
+            <input
+              ref={videoInput}
+              className="sr-only"
+              type="file"
+              accept="video/*"
+              onChange={(event) => {
+                chooseVideo(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+            <div
+              className={`lesson-video-picker ${dragVideo ? "drag-active" : ""}`}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setDragVideo(true);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragVideo(true);
+              }}
+              onDragLeave={() => setDragVideo(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragVideo(false);
+                chooseVideo(event.dataTransfer.files?.[0]);
+              }}
+            >
+              <span className="lesson-video-icon">
+                <FileVideo size={28} />
+              </span>
+              <div>
+                <strong>
+                  {videoFile
+                    ? videoFile.name
+                    : l?.videoId
+                      ? "Video hiện tại đã sẵn sàng"
+                      : "Thêm video cho bài học"}
+                </strong>
+                <small>
+                  {videoFile
+                    ? `${(videoFile.size / 1024 / 1024).toFixed(1)} MB · sẽ tải nền sau khi lưu`
+                    : "Kéo thả video vào đây hoặc chọn file từ máy."}
+                </small>
+              </div>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => videoInput.current?.click()}
+              >
+                <Upload size={16} />
+                {videoFile || l?.videoId ? "Chọn video khác" : "Chọn video"}
+              </button>
+            </div>
+          </section>
+        )}
+
+        <section className="lesson-form-section">
+          <div className="lesson-section-heading">
+            <div>
+              <strong>
+                {kind === "VIDEO"
+                  ? "Mô tả / nội dung bổ sung"
+                  : "Nội dung bài học"}
+              </strong>
+              <small>
+                {kind === "VIDEO"
+                  ? "Thêm ghi chú, tài liệu tham khảo hoặc nội dung đi kèm video."
+                  : "Soạn nội dung bài học. Có thể kéo thả hoặc dán ảnh trực tiếp."}
+              </small>
+            </div>
+          </div>
+          <RichEditor name="body" defaultValue={l?.body} />
+        </section>
+
+        <section className="lesson-preview-option">
+          <div>
+            <strong>Cho phép học thử</strong>
+            <small>
+              Học viên chưa mua khóa học có thể mở và xem toàn bộ bài này.
+            </small>
+          </div>
+          <label className="lesson-switch">
+            <input
+              type="checkbox"
+              name="preview"
+              defaultChecked={l?.preview}
+              aria-label="Cho phép học thử"
+            />
+            <span />
+          </label>
+        </section>
+
+        <section className="lesson-form-section">
+          <div className="lesson-section-heading lesson-attachment-heading">
+            <div>
+              <strong>Tài liệu đính kèm</strong>
+              <small>PDF, slide hoặc file hỗ trợ cho bài học.</small>
+            </div>
+            {!showAttachment && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowAttachment(true)}
+              >
+                <Paperclip size={16} />
+                Thêm tài liệu
+              </button>
+            )}
+          </div>
+          {showAttachment && (
+            <div className="lesson-attachment-upload">
+              <FileUpload
+                label={attachmentId ? "Thay tài liệu" : "Tải tài liệu"}
+                purpose="LESSON"
+                kind="file"
+                value={attachmentId}
+                onUploaded={(file) => setAttachment(file.id)}
+              />
+              {attachmentId && (
+                <button
+                  type="button"
+                  className="secondary self-start"
+                  onClick={() => {
+                    setAttachment("");
+                    setShowAttachment(false);
+                  }}
+                >
+                  Bỏ tài liệu
+                </button>
+              )}
+            </div>
+          )}
+        </section>
       </div>
-      <Field label="Nội dung">
-        <RichEditor name="body" defaultValue={l?.body} />
-      </Field>
-      <label className="flex gap-2">
-        <input type="checkbox" name="preview" defaultChecked={l?.preview} />
-        Cho phép học thử
-      </label>
-      {kind === "VIDEO" && (
-        <div className="stack">
-          <h3>Video bài học</h3>
-          <FileUpload label="Tải video" purpose="LESSON" kind="video" value={videoId} onUploaded={(f) => setVideo(f.id)} />
-        </div>
-      )}
-      <h3>Tài liệu đính kèm</h3>
-      <FileUpload label="Tải tài liệu" purpose="LESSON" kind="file" value={attachmentId} onUploaded={(f) => setAttachment(f.id)} />
-      {attachmentId && (
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => setAttachment("")}
-        >
-          Bỏ tài liệu đính kèm
+
+      <div className="lesson-modal-actions">
+        <button type="button" className="secondary" onClick={close}>
+          Hủy
         </button>
-      )}
-      <button disabled={action.isPending}>Lưu bài học</button>
+        <button disabled={action.isPending}>
+          {action.isPending
+            ? "Đang lưu…"
+            : videoFile
+              ? "Lưu và tải video nền"
+              : "Lưu bài học"}
+        </button>
+      </div>
     </form>
   );
 }
