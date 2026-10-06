@@ -48,10 +48,18 @@ export function Layout() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const staff = user && ["ADMIN", "MANAGER"].includes(user.role);
-  const author = user && user.role !== "STUDENT";
+  const instructor = user?.role === "INSTRUCTOR";
   const { pathname } = useLocation();
-  const workspaceRoute = /^\/(admin|instructor)(\/|$)/.test(pathname) || pathname === "/files";
-  const sidebar = Boolean(author && workspaceRoute);
+  const adminWorkspace = /^\/admin(\/|$)/.test(pathname);
+  const instructorWorkspace =
+    /^\/instructor(\/|$)/.test(pathname) ||
+    (pathname === "/files" && instructor);
+  const canUseInstructorWorkspace =
+    user && ["INSTRUCTOR", "MANAGER", "ADMIN"].includes(user.role);
+  const sidebar = Boolean(
+    (instructorWorkspace && canUseInstructorWorkspace) ||
+      (adminWorkspace && staff),
+  );
   const learning = /\/learn\//.test(pathname);
   useEffect(() => { setOpen(false); setAccountOpen(false); window.scrollTo({ top: 0 }); }, [pathname]);
   useEffect(() => {
@@ -93,17 +101,7 @@ export function Layout() {
           <X />
         </button>
         <nav>
-          <div className="nav-label">KHÔNG GIAN HỌC TẬP</div>
-          {item("/", "Khám phá", Compass)}
-          {user && (
-            <>
-              {item("/learning", "Khóa học của tôi", Library)}
-              {item("/bookmarks", "Đã lưu", Bookmark)}
-              {item("/orders", "Lịch sử thanh toán", Receipt)}
-              {item("/profile", "Hồ sơ cá nhân", UserRound)}
-            </>
-          )}
-          {author && (
+          {instructorWorkspace && (
             <>
               <div className="nav-label">GIẢNG VIÊN</div>
               {item("/instructor", "Tổng quan", LayoutDashboard)}
@@ -111,22 +109,24 @@ export function Layout() {
               {item("/files", "Thư viện tài nguyên", Files)}
             </>
           )}
-          {staff && (
+          {adminWorkspace && staff && (
             <>
-              <div className="nav-label">QUẢN LÝ</div>
+              <div className="nav-label">
+                {user?.role === "ADMIN" ? "QUẢN TRỊ" : "QUẢN LÝ"}
+              </div>
               {item("/admin", "Tổng quan hệ thống", LayoutDashboard)}
               {item("/admin/users", "Tài khoản", Users)}
               {item("/admin/courses", "Duyệt khóa học", ShieldCheck)}
               {item("/admin/categories", "Danh mục", Folder)}
               {item("/admin/orders", "Hóa đơn", Receipt)}
               {item("/admin/moderation", "Kiểm duyệt nội dung", ShieldCheck)}
-            </>
-          )}
-          {user?.role === "ADMIN" && (
-            <>
-              {item("/admin/settings", "Cài đặt hệ thống", Settings)}
-              {item("/admin/audit", "Nhật ký", Receipt)}
-              {item("/admin/file-issues", "Đối chiếu upload", Files)}
+              {user?.role === "ADMIN" && (
+                <>
+                  {item("/admin/settings", "Cài đặt hệ thống", Settings)}
+                  {item("/admin/audit", "Nhật ký", Receipt)}
+                  {item("/admin/file-issues", "Đối chiếu upload", Files)}
+                </>
+              )}
             </>
           )}
         </nav>
@@ -144,7 +144,7 @@ export function Layout() {
           >
             <Menu />
           </button>
-          <span className="workspace-context">Wisdom <span>/</span> {pathname.startsWith("/admin") ? "Quản trị hệ thống" : "Không gian giảng dạy"}</span></> : <>
+          <span className="workspace-context">Wisdom <span>/</span> {adminWorkspace ? "Quản trị hệ thống" : "Không gian giảng dạy"}</span></> : <>
             <Link to="/" className="public-brand"><img src="/logo.png" alt="Wisdom — Trang chủ" /></Link>
             <div className="public-search">
               <CategoryPicker categories={categories.data || []} value="" onChange={id => nav(`/?category=${encodeURIComponent(id)}#courses`)} />
@@ -167,13 +167,19 @@ export function Layout() {
                 </button>
                 {accountOpen && <motion.div initial={reduceMotion ? false : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .18 }} className="account-dropdown" id="account-navigation">
                   <div className="account-menu-heading"><strong>{user.name}</strong><small>{user.email}</small></div>
-                  <nav aria-label="Điều hướng học tập" onClick={() => setAccountOpen(false)}>
-                    <NavLink to="/learning"><Library size={18} />Khóa học của tôi</NavLink>
-                    <NavLink to="/bookmarks"><Bookmark size={18} />Đã lưu</NavLink>
-                    <NavLink to="/orders"><Receipt size={18} />Thanh toán</NavLink>
-                    <NavLink to="/profile"><UserRound size={18} />Hồ sơ</NavLink>
-                    {author && <div className="account-teaching-section"><NavLink className="account-teaching" to="/instructor"><BookOpen size={18} /><span>Giảng dạy</span><ArrowUpRight size={16} aria-hidden="true" /></NavLink></div>}
-                    {staff && <NavLink className="account-teaching" to="/admin"><LayoutDashboard size={18} /><span>Quản lý</span><ArrowUpRight size={16} aria-hidden="true" /></NavLink>}
+                  <nav aria-label={sidebar ? "Tài khoản" : "Điều hướng học tập"} onClick={() => setAccountOpen(false)}>
+                    {sidebar ? (
+                      <NavLink to="/profile"><UserRound size={18} />Hồ sơ</NavLink>
+                    ) : (
+                      <>
+                        <NavLink to="/learning"><Library size={18} />Khóa học của tôi</NavLink>
+                        <NavLink to="/bookmarks"><Bookmark size={18} />Đã lưu</NavLink>
+                        <NavLink to="/orders"><Receipt size={18} />Thanh toán</NavLink>
+                        <NavLink to="/profile"><UserRound size={18} />Hồ sơ</NavLink>
+                        {instructor && <div className="account-teaching-section"><NavLink className="account-teaching" to="/instructor"><BookOpen size={18} /><span>Giảng dạy</span><ArrowUpRight size={16} aria-hidden="true" /></NavLink></div>}
+                        {staff && <NavLink className="account-teaching" to="/admin"><LayoutDashboard size={18} /><span>Quản lý</span><ArrowUpRight size={16} aria-hidden="true" /></NavLink>}
+                      </>
+                    )}
                   </nav>
                   <button className="account-logout" disabled={loggingOut} onClick={async () => {
                     setLoggingOut(true);
