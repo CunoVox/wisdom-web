@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RichEditor } from "../components/rich-editor";
 import { categoryRows } from "../components/category-picker";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, FileText, FileVideo, Paperclip, Plus, RefreshCw, Upload, X } from "lucide-react";
-import { api, errorMessage, get, money } from "../lib/api";
+import { BookOpen, FileText, FileVideo, Paperclip, Pencil, Plus, RefreshCw, Trash2, Upload, X } from "lucide-react";
+import { api, errorMessage, get, mediaUrl, money } from "../lib/api";
 import {
   Heading,
   State,
@@ -406,24 +406,29 @@ function Editor({ course: c }: { course?: Course }) {
             <section className="panel stack">
               <h2>Chương và bài học</h2>
               {c.chapters?.map((ch) => (
-                <div
-                  key={ch.id}
-                  className="border border-line rounded-xl p-4 stack"
-                >
-                  <div className="flex justify-between gap-2">
-                    <h3>
-                      {ch.position + 1}. {ch.title}
-                    </h3>
-                    <div className="flex gap-1">
+                <section key={ch.id} className="course-chapter-card">
+                  <div className="course-chapter-header">
+                    <div>
+                      <span>Chương {ch.position + 1}</span>
+                      <h3>{ch.title}</h3>
+                      <small>{ch.lessons.length} bài học</small>
+                    </div>
+                    <div className="course-chapter-actions">
                       <button
-                        className="secondary"
+                        type="button"
+                        className="icon-button"
+                        aria-label={`Sửa chương ${ch.title}`}
+                        title="Sửa chương"
                         disabled={frozen}
                         onClick={() => setEditChapter(ch)}
                       >
-                        Sửa
+                        <Pencil size={17} />
                       </button>
                       <button
-                        className="danger"
+                        type="button"
+                        className="icon-button danger-icon"
+                        aria-label={`Xóa chương ${ch.title}`}
+                        title="Xóa chương"
                         disabled={frozen}
                         onClick={() =>
                           action.mutate({
@@ -432,87 +437,144 @@ function Editor({ course: c }: { course?: Course }) {
                           })
                         }
                       >
-                        Xóa
+                        <Trash2 size={17} />
                       </button>
                     </div>
                   </div>
-                  {ch.lessons.map((l) => {
-                    const upload = videoUploads[l.id];
-                    return (
-                      <div key={l.id} className="lesson-row lesson-builder-row">
-                        <span className="lesson-row-main">
-                          <span>
-                            {l.position + 1}. {l.title}{" "}
-                            {l.preview && <Badge value="Học thử" />}
-                          </span>
-                          {l.kind === "VIDEO" && (
-                            <small
-                              className={
-                                upload?.phase === "error"
-                                  ? "lesson-video-state error"
-                                  : upload
-                                    ? "lesson-video-state uploading"
-                                    : l.videoReady
-                                      ? "lesson-video-state ready"
-                                      : "lesson-video-state warning"
+
+                  <div className="lesson-curriculum-list">
+                    {ch.lessons.map((l) => {
+                      const upload = videoUploads[l.id];
+                      const videoLabel =
+                        upload?.phase === "error"
+                          ? "Upload video lỗi"
+                          : upload?.phase === "attaching"
+                            ? "Đang hoàn tất video…"
+                            : upload
+                              ? `Đang tải video ${upload.progress}%`
+                              : l.videoReady
+                                ? "Video sẵn sàng"
+                                : "Chưa có video";
+                      return (
+                        <article key={l.id} className="lesson-curriculum-item">
+                          <div className="lesson-curriculum-index">
+                            {l.position + 1}
+                          </div>
+                          <div
+                            className={`lesson-curriculum-icon ${l.kind === "VIDEO" ? "video" : "article"}`}
+                            aria-hidden="true"
+                          >
+                            {l.kind === "VIDEO" ? (
+                              <FileVideo size={19} />
+                            ) : (
+                              <FileText size={19} />
+                            )}
+                          </div>
+                          <div className="lesson-curriculum-main">
+                            <div className="lesson-curriculum-title">
+                              <strong>{l.title}</strong>
+                              <span className="lesson-kind-label">
+                                {l.kind === "VIDEO" ? "Video" : "Bài viết"}
+                              </span>
+                              {l.preview && <Badge value="Học thử" />}
+                              {l.attachmentId && (
+                                <span
+                                  className="lesson-attachment-chip"
+                                  title="Có tài liệu đính kèm"
+                                >
+                                  <Paperclip size={12} />
+                                  Tài liệu
+                                </span>
+                              )}
+                            </div>
+                            {l.kind === "VIDEO" && (
+                              <div className="lesson-video-progress-wrap">
+                                <small
+                                  className={
+                                    upload?.phase === "error"
+                                      ? "lesson-video-state error"
+                                      : upload
+                                        ? "lesson-video-state uploading"
+                                        : l.videoReady
+                                          ? "lesson-video-state ready"
+                                          : "lesson-video-state warning"
+                                  }
+                                >
+                                  {videoLabel}
+                                </small>
+                                {upload && upload.phase === "uploading" && (
+                                  <div
+                                    className="lesson-upload-progress"
+                                    aria-label={`Đang tải video ${upload.progress}%`}
+                                  >
+                                    <span style={{ width: `${upload.progress}%` }} />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="lesson-curriculum-actions">
+                            {upload?.phase === "error" && (
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => retryVideoUpload(upload)}
+                              >
+                                <RefreshCw size={14} />
+                                Thử lại
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="secondary"
+                              disabled={
+                                frozen ||
+                                Boolean(upload && upload.phase !== "error")
+                              }
+                              onClick={() =>
+                                setEditLesson({ chapter: ch, lesson: l })
                               }
                             >
-                              {upload?.phase === "error"
-                                ? "Upload video lỗi"
-                                : upload?.phase === "attaching"
-                                  ? "Đang hoàn tất video…"
-                                  : upload
-                                    ? `Đang tải video ${upload.progress}%`
-                                    : l.videoReady
-                                      ? "Video sẵn sàng"
-                                      : "Chưa có video"}
-                            </small>
-                          )}
-                        </span>
-                        <div className="flex gap-2">
-                          {upload?.phase === "error" && (
-                            <button
-                              className="secondary"
-                              onClick={() => retryVideoUpload(upload)}
-                            >
-                              <RefreshCw size={15} />
-                              Thử lại
+                              <Pencil size={14} />
+                              Sửa
                             </button>
-                          )}
-                          <button
-                            disabled={frozen || Boolean(upload && upload.phase !== "error")}
-                            className="secondary"
-                            onClick={() =>
-                              setEditLesson({ chapter: ch, lesson: l })
-                            }
-                          >
-                            Sửa
-                          </button>
-                          <button
-                            className="danger"
-                            disabled={frozen || Boolean(upload)}
-                            onClick={() =>
-                              action.mutate({
-                                path: `/instructor/lessons/${l.id}`,
-                                method: "delete",
-                              })
-                            }
-                          >
-                            Xóa
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              className="icon-button danger-icon"
+                              aria-label={`Xóa bài ${l.title}`}
+                              title="Xóa bài"
+                              disabled={frozen || Boolean(upload)}
+                              onClick={() =>
+                                action.mutate({
+                                  path: `/instructor/lessons/${l.id}`,
+                                  method: "delete",
+                                })
+                              }
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+
+                    {!ch.lessons.length && (
+                      <div className="lesson-curriculum-empty">
+                        <FileText size={22} />
+                        <span>Chương này chưa có bài học.</span>
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
+
                   <button
                     disabled={frozen}
-                    className="secondary self-start"
+                    className="lesson-add-button"
                     onClick={() => setEditLesson({ chapter: ch })}
                   >
                     <Plus size={16} />
-                    Thêm bài
+                    Thêm bài học
                   </button>
-                </div>
+                </section>
               ))}
               <form
                 className="stack"
@@ -727,9 +789,23 @@ function LessonForm({
     (l?.kind as "ARTICLE" | "VIDEO") || "ARTICLE",
   );
   const [videoFile, setVideoFile] = useState<File>();
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState(
+    l?.videoId ? mediaUrl(l.videoId) : "",
+  );
   const [dragVideo, setDragVideo] = useState(false);
   const [attachmentId, setAttachment] = useState(l?.attachmentId || "");
   const [showAttachment, setShowAttachment] = useState(Boolean(l?.attachmentId));
+
+  useEffect(() => {
+    if (!videoFile) {
+      setVideoPreviewUrl(l?.videoId ? mediaUrl(l.videoId) : "");
+      return;
+    }
+
+    const url = URL.createObjectURL(videoFile);
+    setVideoPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [videoFile, l?.videoId]);
 
   const chooseVideo = (file?: File) => {
     if (!file) return;
@@ -843,7 +919,7 @@ function LessonForm({
               }}
             />
             <div
-              className={`lesson-video-picker ${dragVideo ? "drag-active" : ""}`}
+              className={`lesson-video-stage ${dragVideo ? "drag-active" : ""}`}
               onDragEnter={(event) => {
                 event.preventDefault();
                 setDragVideo(true);
@@ -859,31 +935,57 @@ function LessonForm({
                 chooseVideo(event.dataTransfer.files?.[0]);
               }}
             >
-              <span className="lesson-video-icon">
-                <FileVideo size={28} />
-              </span>
-              <div>
-                <strong>
-                  {videoFile
-                    ? videoFile.name
-                    : l?.videoId
-                      ? "Video hiện tại đã sẵn sàng"
-                      : "Thêm video cho bài học"}
-                </strong>
-                <small>
-                  {videoFile
-                    ? `${(videoFile.size / 1024 / 1024).toFixed(1)} MB · sẽ tải nền sau khi lưu`
-                    : "Kéo thả video vào đây hoặc chọn file từ máy."}
-                </small>
-              </div>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => videoInput.current?.click()}
-              >
-                <Upload size={16} />
-                {videoFile || l?.videoId ? "Chọn video khác" : "Chọn video"}
-              </button>
+              {videoPreviewUrl ? (
+                <div className="lesson-video-preview">
+                  <video
+                    key={videoPreviewUrl}
+                    src={videoPreviewUrl}
+                    controls
+                    preload="metadata"
+                  />
+                  <div className="lesson-video-preview-meta">
+                    <div>
+                      <strong>
+                        {videoFile ? videoFile.name : "Video bài học"}
+                      </strong>
+                      <small>
+                        {videoFile
+                          ? `${(videoFile.size / 1024 / 1024).toFixed(1)} MB · preview trước khi upload`
+                          : "Video đã lưu trên hệ thống"}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => videoInput.current?.click()}
+                    >
+                      <Upload size={16} />
+                      Thay video
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="lesson-video-picker">
+                  <span className="lesson-video-icon">
+                    <FileVideo size={30} />
+                  </span>
+                  <div>
+                    <strong>Thêm video cho bài học</strong>
+                    <small>
+                      Kéo thả video vào đây hoặc chọn file từ máy. Sau khi chọn,
+                      bạn có thể xem preview trước khi lưu.
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => videoInput.current?.click()}
+                  >
+                    <Upload size={16} />
+                    Chọn video
+                  </button>
+                </div>
+              )}
             </div>
           </section>
         )}
