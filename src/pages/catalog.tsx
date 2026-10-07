@@ -61,19 +61,26 @@ export function CourseCard({
         <div className="course-body">
           <span className="course-category">{c.category || "Khóa học"}</span>
           <h3>{c.title}</h3>
-          <p>{c.instructor}</p>
-          {c.totalLessons === undefined && <small className="course-meta"><Users size={14} /> {c.enrollments || 0} học viên</small>}
+          <div className="course-card-meta-row">
+            <span className="course-instructor">{c.instructor}</span>
+            {c.totalLessons === undefined && (
+              <span className="course-student-count">
+                <Users size={13} />
+                {c.enrollments || 0} học viên
+              </span>
+            )}
+          </div>
           {c.totalLessons !== undefined && (
-            <>
+            <div className="course-progress-meta">
               <progress
-                className="w-full accent-brand mt-3"
+                className="w-full accent-brand"
                 value={c.completed || 0}
                 max={c.totalLessons || 1}
               />
               <small>
                 {c.completed}/{c.totalLessons} bài hoàn thành
               </small>
-            </>
+            </div>
           )}
         </div>
       </Link>
