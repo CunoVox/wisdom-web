@@ -113,11 +113,37 @@ export function Catalog() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
   const category = params.get("category") || "";
-  const setQ = (value: string) => setParams(previous => { previous.set("q", value); previous.delete("page"); return previous; }, { replace: true });
-  const setCategory = (value: string) => setParams(previous => { previous.set("category", value); previous.delete("page"); return previous; }, { replace: true });
+  const setQ = (value: string) =>
+    setParams(
+      (previous) => {
+        if (value) previous.set("q", value);
+        else previous.delete("q");
+        previous.delete("page");
+        return previous;
+      },
+      { replace: true },
+    );
+  const setCategory = (value: string) =>
+    setParams(
+      (previous) => {
+        if (value) previous.set("category", value);
+        else previous.delete("category");
+        previous.delete("page");
+        return previous;
+      },
+      { replace: true },
+    );
   const [sort, setSort] = useState("newest");
   const page = Math.max(0, Number(params.get("page")) || 0);
-  const setPage = (value: number) => setParams(previous => { previous.set("page", String(value)); return previous; }, { replace: true });
+  const setPage = (value: number) =>
+    setParams(
+      (previous) => {
+        previous.set("page", String(value));
+        return previous;
+      },
+      { replace: true },
+    );
+
   const cats = useQuery({
     queryKey: ["categories"],
     queryFn: () => get<Category[]>("/public/categories"),
@@ -126,97 +152,376 @@ export function Catalog() {
     queryKey: ["catalog", q, category, sort, page],
     queryFn: () =>
       get<Page<Course>>(
-        `/public/courses?${new URLSearchParams({ q, category, sort, page: String(page), size: "12" })}`,
+        `/public/courses?${new URLSearchParams({
+          q,
+          category,
+          sort,
+          page: String(page),
+          size: "12",
+        })}`,
       ),
   });
-  const roots = (cats.data || []).filter(c => !c.parentId);
+
+  const roots = (cats.data || []).filter((c) => !c.parentId);
+  const popularRoots = roots.slice(0, 6);
   const filtered = Boolean(q || category);
+  const activeCategory = cats.data?.find((item) => item.id === category);
+
+  const enter = reduceMotion
+    ? { initial: false as const }
+    : {
+        initial: { opacity: 0, y: 14 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.32, ease: "easeOut" as const },
+      };
+
   return (
     <>
-      {!filtered && <div className="discovery-intro">
-        <section className="discovery-hero" aria-labelledby="home-title">
-          <div className="discovery-hero-inner">
-            <div className="discovery-copy">
-              <h1 id="home-title">Học điều mới.<br /><span>Mở lối</span><br />tương lai.</h1>
-              <p>Khám phá điều bạn muốn học, thực hành từng bước và tiến xa hơn mỗi ngày cùng Wisdom.</p>
-              <a className="button hero-cta" href="#courses">Khám phá khóa học <ArrowUpRight size={20} /></a>
-              <div className="hero-note"><BookOpen size={18} />Kiến thức thực tế. Nhịp học của riêng bạn.</div>
+      {!filtered && (
+        <div className="discovery-intro">
+          <section className="discovery-hero" aria-labelledby="home-title">
+            <div className="discovery-hero-inner">
+              <div className="discovery-copy">
+                <h1 id="home-title">
+                  Học điều mới.
+                  <br />
+                  <span>Mở lối</span>
+                  <br />
+                  tương lai.
+                </h1>
+                <p>
+                  Khám phá điều bạn muốn học, thực hành từng bước và tiến xa hơn
+                  mỗi ngày cùng Wisdom.
+                </p>
+                <a className="button hero-cta" href="#courses">
+                  Khám phá khóa học <ArrowUpRight size={20} />
+                </a>
+                <div className="hero-note">
+                  <BookOpen size={18} />
+                  Kiến thức thực tế. Nhịp học của riêng bạn.
+                </div>
+              </div>
+              <motion.div
+                className="discovery-art"
+                initial={false}
+                animate={
+                  reduceMotion ? undefined : { y: [0, -7, 0] }
+                }
+                transition={{
+                  duration: 7,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              >
+                <img
+                  src="/visuals/learning-about.webp"
+                  alt="Học viên trao đổi và tự học với tài liệu"
+                  width={600}
+                  height={581}
+                  fetchPriority="high"
+                />
+              </motion.div>
             </div>
-            <motion.div className="discovery-art" initial={false} animate={reduceMotion ? undefined : { y: [0, -7, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}>
-              <img src="/visuals/learning-about.webp" alt="Học viên trao đổi và tự học với tài liệu" width={600} height={581} fetchPriority="high" />
-            </motion.div>
-          </div>
-        </section>
-        <section className="discovery-benefits" aria-label="Lợi ích học tập">
-          <div className="discovery-benefits-inner">
-            {([
-              [BookOpen, "Khóa học trực tuyến", "Khám phá nhiều chủ đề mới"],
-              [Check, "Giảng viên kinh nghiệm", "Tìm khóa học phù hợp với bạn"],
-              [Clock, "Truy cập trọn đời", "Học theo lịch trình của bạn"],
-            ] as const).map(([Icon, title, description]) => <div className="discovery-benefit" key={title}>
-              <span className="discovery-benefit-icon"><Icon size={27} strokeWidth={1.6} aria-hidden="true" /></span>
-              <div><h2>{String(title)}</h2><p>{String(description)}</p></div>
-            </div>)}
-          </div>
-        </section>
-      </div>}
-      <section id="courses" className="catalog-section" aria-labelledby="catalog-heading">
-      <div className="catalog-heading">
-        <div>{filtered ? <h1 id="catalog-heading">{q ? `Kết quả cho “${q}”` : cats.data?.find(c => c.id === category)?.name || "Khóa học theo danh mục"}</h1> : <h2 id="catalog-heading">Khám phá điều<br className="desktop-break" /> bạn <span>muốn học.</span></h2>}<p>Chọn một khởi đầu. Tạo nên bước tiến của riêng bạn.</p></div>
-        {courses.data && <span className="result-count">{courses.data.total} khóa học</span>}
-      </div>
-      {roots.length > 0 && <div className="topic-tabs" aria-label="Chủ đề khóa học">
-        <button className={!category ? "selected" : ""} aria-pressed={!category} onClick={() => setCategory("")}>Tất cả</button>
-        {roots.map(c => <button key={c.id} className={category === c.id ? "selected" : ""} aria-pressed={category === c.id} onClick={() => setCategory(c.id)}>{c.name}</button>)}
-      </div>}
-      <div className="toolbar catalog-toolbar">
-        <div className="filter-search"><Search size={18} />
-        <input
-          type="search"
-          aria-label="Tìm kiếm khóa học"
-          placeholder="Tìm tên khóa học…"
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-          }}
-        />
+          </section>
+
+          <section
+            className="discovery-benefits"
+            aria-label="Lợi ích học tập"
+          >
+            <div className="discovery-benefits-inner">
+              {([
+                [BookOpen, "Khóa học trực tuyến", "Khám phá nhiều chủ đề mới"],
+                [
+                  Check,
+                  "Giảng viên kinh nghiệm",
+                  "Tìm khóa học phù hợp với bạn",
+                ],
+                [Clock, "Truy cập trọn đời", "Học theo lịch trình của bạn"],
+              ] as const).map(([Icon, title, description]) => (
+                <div className="discovery-benefit" key={title}>
+                  <span className="discovery-benefit-icon">
+                    <Icon size={27} strokeWidth={1.6} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h2>{String(title)}</h2>
+                    <p>{String(description)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
-        <CategoryPicker categories={cats.data || []} value={category} onChange={setCategory} />
-        <select
-          aria-label="Sắp xếp"
-          value={sort}
-          onChange={(e) => {
-            setSort(e.target.value);
-            setPage(0);
-          }}
-        >
-          <option value="newest">Mới nhất</option>
-          <option value="priceAsc">Giá tăng dần</option>
-          <option value="priceDesc">Giá giảm dần</option>
-        </select>
-      </div>
-      <State query={courses}>
-        {courses.data?.content.length ? (
-          <div className="course-grid">
-            {courses.data.content.map((c) => (
-              <CourseCard key={c.id} course={c} />
-            ))}
+      )}
+
+      <section
+        id="courses"
+        className="catalog-section catalog-redesign"
+        aria-labelledby="catalog-heading"
+      >
+        <motion.div className="catalog-discovery-panel" {...enter}>
+          <div className="catalog-discovery-copy">
+            <span>Khám phá khóa học</span>
+            <h2 id="catalog-heading">
+              Bạn muốn học gì <em>hôm nay?</em>
+            </h2>
+            <p>
+              Tìm một kỹ năng mới, khám phá chủ đề bạn yêu thích và học theo
+              nhịp của riêng bạn.
+            </p>
           </div>
-        ) : (
-          <Empty text="Chưa tìm thấy khóa học phù hợp"><p>Thử từ khóa khác hoặc khám phá tất cả chủ đề.</p>{filtered && <button className="secondary" onClick={() => setParams({})}>Xóa bộ lọc</button>}</Empty>
-        )}
-        {(courses.data?.total || 0) > 12 && <Pager
-          page={page}
-          size={12}
-          total={courses.data?.total || 0}
-          onChange={setPage}
-        />}
-      </State>
+
+          <div className="catalog-search-hero">
+            <Search size={20} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Tìm kiếm khóa học"
+              placeholder="Tìm khóa học, kỹ năng hoặc chủ đề..."
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+            />
+            {q && (
+              <button
+                type="button"
+                className="catalog-search-clear"
+                onClick={() => setQ("")}
+              >
+                Xóa
+              </button>
+            )}
+          </div>
+
+          {popularRoots.length > 0 && (
+            <div className="catalog-popular-topics" aria-label="Chủ đề nổi bật">
+              <span>Chủ đề nổi bật</span>
+              <div>
+                <motion.button
+                  type="button"
+                  className={!category ? "selected" : ""}
+                  aria-pressed={!category}
+                  onClick={() => setCategory("")}
+                  whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                >
+                  Tất cả
+                </motion.button>
+                {popularRoots.map((item, index) => (
+                  <motion.button
+                    key={item.id}
+                    type="button"
+                    className={category === item.id ? "selected" : ""}
+                    aria-pressed={category === item.id}
+                    onClick={() => setCategory(item.id)}
+                    initial={
+                      reduceMotion ? false : { opacity: 0, y: 8 }
+                    }
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.22,
+                      delay: reduceMotion ? 0 : index * 0.035,
+                    }}
+                    whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                  >
+                    {item.name}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        <div className="catalog-results-heading">
+          <div>
+            <span>
+              {filtered ? "Kết quả tìm kiếm" : "Khóa học dành cho bạn"}
+            </span>
+            <h2>
+              {q
+                ? `Kết quả cho “${q}”`
+                : activeCategory?.name || "Khám phá nội dung mới"}
+            </h2>
+            <p>
+              {filtered
+                ? "Điều chỉnh bộ lọc để tìm khóa học phù hợp hơn."
+                : "Những khóa học mới và hữu ích đang có trên Wisdom."}
+            </p>
+          </div>
+
+          {courses.data && (
+            <strong className="catalog-result-total">
+              {courses.data.total} khóa học
+            </strong>
+          )}
+        </div>
+
+        <div className="catalog-controls">
+          <div className="catalog-active-filters">
+            {activeCategory && (
+              <button type="button" onClick={() => setCategory("")}>
+                {activeCategory.name} ×
+              </button>
+            )}
+            {q && (
+              <button type="button" onClick={() => setQ("")}>
+                “{q}” ×
+              </button>
+            )}
+            {filtered && (
+              <button
+                type="button"
+                className="clear-all"
+                onClick={() => setParams({})}
+              >
+                Xóa bộ lọc
+              </button>
+            )}
+          </div>
+
+          <div className="catalog-control-actions">
+            <CategoryPicker
+              categories={cats.data || []}
+              value={category}
+              onChange={setCategory}
+            />
+            <select
+              aria-label="Sắp xếp"
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value);
+                setPage(0);
+              }}
+            >
+              <option value="newest">Mới nhất</option>
+              <option value="priceAsc">Giá tăng dần</option>
+              <option value="priceDesc">Giá giảm dần</option>
+            </select>
+          </div>
+        </div>
+
+        <State query={courses}>
+          {courses.data?.content.length ? (
+            <motion.div
+              className="course-grid catalog-course-grid"
+              initial="hidden"
+              animate="show"
+              variants={{
+                hidden: {},
+                show: {
+                  transition: {
+                    staggerChildren: reduceMotion ? 0 : 0.055,
+                  },
+                },
+              }}
+            >
+              {courses.data.content.map((course) => (
+                <motion.div
+                  className="catalog-course-motion"
+                  key={course.id}
+                  layout={!reduceMotion}
+                  variants={{
+                    hidden: reduceMotion
+                      ? { opacity: 1 }
+                      : { opacity: 0, y: 14 },
+                    show: { opacity: 1, y: 0 },
+                  }}
+                  transition={{ duration: 0.28, ease: "easeOut" }}
+                  whileHover={
+                    reduceMotion ? undefined : { y: -4 }
+                  }
+                >
+                  <CourseCard course={course} />
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <Empty text="Chưa tìm thấy khóa học phù hợp">
+              <p>Thử từ khóa khác hoặc khám phá tất cả chủ đề.</p>
+              {filtered && (
+                <button
+                  className="secondary"
+                  onClick={() => setParams({})}
+                >
+                  Xóa bộ lọc
+                </button>
+              )}
+            </Empty>
+          )}
+
+          {(courses.data?.total || 0) > 12 && (
+            <Pager
+              page={page}
+              size={12}
+              total={courses.data?.total || 0}
+              onChange={setPage}
+            />
+          )}
+        </State>
       </section>
-      {!filtered && <>
-        {roots.length > 0 && <section className="topic-directory"><h2>Bắt đầu từ lĩnh vực bạn yêu thích</h2><div>{roots.map(c => <Link key={c.id} to={`/?category=${encodeURIComponent(c.id)}#courses`}>{c.name}<ArrowUpRight size={18} /></Link>)}</div></section>}
-        <section className="teaching-banner"><div><h2>Biến kinh nghiệm của bạn thành bài học.</h2><p>Chia sẻ kiến thức, xây dựng khóa học và đồng hành cùng học viên trên Wisdom.</p></div><Link className="button secondary" to="/profile">Trở thành giảng viên <ArrowRight size={17} /></Link></section>
-      </>}
+
+      {!filtered && (
+        <>
+          {popularRoots.length > 0 && (
+            <motion.section
+              className="topic-directory topic-directory-redesign"
+              initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.18 }}
+              transition={{ duration: 0.34 }}
+            >
+              <div className="topic-directory-heading">
+                <div>
+                  <span>Khám phá theo chủ đề</span>
+                  <h2>Bắt đầu từ lĩnh vực bạn yêu thích</h2>
+                </div>
+                <a href="#courses">Xem khóa học ↑</a>
+              </div>
+
+              <div className="topic-directory-grid">
+                {popularRoots.map((item, index) => (
+                  <motion.div
+                    key={item.id}
+                    initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{
+                      duration: 0.25,
+                      delay: reduceMotion ? 0 : index * 0.04,
+                    }}
+                    whileHover={
+                      reduceMotion ? undefined : { y: -3 }
+                    }
+                  >
+                    <Link
+                      to={`/?category=${encodeURIComponent(item.id)}#courses`}
+                    >
+                      <span>{String(index + 1).padStart(2, "0")}</span>
+                      <strong>{item.name}</strong>
+                      <ArrowUpRight size={18} />
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.section>
+          )}
+
+          <motion.section
+            className="teaching-banner"
+            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.34 }}
+          >
+            <div>
+              <h2>Biến kinh nghiệm của bạn thành bài học.</h2>
+              <p>
+                Chia sẻ kiến thức, xây dựng khóa học và đồng hành cùng học viên
+                trên Wisdom.
+              </p>
+            </div>
+            <Link className="button secondary" to="/profile">
+              Trở thành giảng viên <ArrowRight size={17} />
+            </Link>
+          </motion.section>
+        </>
+      )}
     </>
   );
 }
