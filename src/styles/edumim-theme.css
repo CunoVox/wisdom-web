@@ -325,3 +325,103 @@ tbody tr:hover { background: #f8fcfa; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Compact catalog course cards. */
+.catalog-course-motion .course-card {
+  height: auto;
+  border-radius: 11px;
+}
+
+.catalog-course-motion .course-art {
+  aspect-ratio: 16 / 10;
+}
+
+.catalog-course-motion .course-body {
+  padding: 13px 14px 10px;
+}
+
+.catalog-course-motion .course-category {
+  min-height: 19px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 8px;
+}
+
+.catalog-course-motion .course-body h3 {
+  min-height: 0;
+  margin: 7px 0 9px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.catalog-course-motion .course-card-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  color: #7b8790;
+  font-size: 9px;
+}
+
+.catalog-course-motion .course-instructor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-course-motion .course-student-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.catalog-course-motion .course-progress-meta {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.catalog-course-motion .course-progress-meta progress {
+  margin: 0;
+}
+
+.catalog-course-motion .course-progress-meta small {
+  color: #7b8790;
+  font-size: 9px;
+}
+
+.catalog-course-motion .course-foot {
+  min-height: 42px;
+  margin: 0 14px;
+  padding: 9px 0 10px;
+}
+
+.catalog-course-motion .course-foot > strong {
+  font-size: 14px;
+}
+
+.catalog-course-motion .course-foot > a {
+  min-height: 28px;
+  gap: 5px;
+  font-size: 9px;
+}
+
+@media (max-width: 760px) {
+  .catalog-course-motion .course-body {
+    padding: 12px 13px 9px;
+  }
+
+  .catalog-course-motion .course-body h3 {
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+
+  .catalog-course-motion .course-foot {
+    margin-inline: 13px;
+  }
+}
